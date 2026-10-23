@@ -46,4 +46,4 @@ python -m unittest -v test_security.py
 Browser → Flask routes and validation → SQLite database. Transactions are associated with an authenticated user ID, and ownership is checked server-side for reads and mutations.
 
 ## Educational use
-This is a local classroom security demonstration. Do not use real financial data. Test only this application or systems for which you have permission.
+Do not use real financial data. Test only this application or systems for which you have permission.
