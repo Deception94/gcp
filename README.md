@@ -25,15 +25,15 @@ python app.py
 
 Open http://127.0.0.1:5000.
 
-Local classroom demo accounts:
+## Demo accounts
 - alice@example.com / AliceDemo!23
 - bob@example.com / BobDemoPass!23
 
-These are intentionally public demo credentials. Never reuse them or expose this demo to the internet.
+These are intentionally public classroom demo credentials. Never reuse them for any other service.
 
 ## Run tests
 ```bash
-python -m unittest -v
+python -m unittest -v test_security.py
 ```
 
 ## Suggested demo
@@ -45,9 +45,5 @@ python -m unittest -v
 ## Architecture
 Browser → Flask routes and validation → SQLite database. Transactions are associated with an authenticated user ID, and ownership is checked server-side for reads and mutations.
 
-## Limitations
-This is a teaching prototype, not a production financial service. It does not include MFA, rate limiting, password reset, production secrets management, TLS termination, or formal penetration testing. Before deployment, configure HTTPS, a strong environment-based secret, secure cookie settings, rate limiting, monitoring, backups, and a reviewed production configuration. Do not use real financial data.
-
-Student: Tanmay Mahajan — EXTC-B — Roll No. 23104B0021
-
-Educational use only. Test only this application or systems for which you have permission.
+## Educational use
+This is a local classroom security demonstration. Do not use real financial data. Test only this application or systems for which you have permission.
