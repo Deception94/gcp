@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: secure-finance-portal-tanmay
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 app:app
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: APP_ENV
+        value: production
+      - key: PORTAL_SECRET_KEY
+        generateValue: true
+      - key: PORTAL_DB
+        value: /tmp/finance_demo.db
