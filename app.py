@@ -4,7 +4,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("PORTAL_SECRET_KEY") or secrets.token_hex(32)
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+production_mode = os.environ.get("APP_ENV", "development").lower() == "production"
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=production_mode,
+    MAX_CONTENT_LENGTH=16 * 1024,
+)
 DB = os.environ.get("PORTAL_DB", "finance_demo.db")
 logging.basicConfig(level=logging.INFO)
 HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Secure Finance Portal</title><style>
@@ -36,7 +42,12 @@ def token():
     return session["_csrf"]
 
 def check_csrf():
-    if not request.form.get("csrf_token") or not secrets.compare_digest(request.form["csrf_token"],session.get("_csrf","")): abort(400,"Invalid CSRF token")
+    submitted = request.form.get("csrf_token", "")
+    expected = session.get("_csrf", "")
+    if not submitted or not expected or not secrets.compare_digest(submitted, expected):
+        # Never log the submitted token or session contents.
+        logging.warning("csrf_rejected method=%s path=%s", request.method, request.path)
+        abort(400, "Invalid CSRF token")
 
 def login_required(fn):
     from functools import wraps
@@ -48,11 +59,33 @@ def login_required(fn):
 
 @app.after_request
 def headers(r):
-    r.headers["X-Content-Type-Options"]="nosniff"; r.headers["X-Frame-Options"]="DENY"
-    r.headers["Referrer-Policy"]="strict-origin-when-cross-origin"
-    r.headers["Content-Security-Policy"]="default-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
-    r.headers["Cache-Control"]="no-store"
+    r.headers["X-Content-Type-Options"] = "nosniff"
+    r.headers["X-Frame-Options"] = "DENY"
+    r.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    r.headers["Content-Security-Policy"] = (
+        "default-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+    )
+    r.headers["Cache-Control"] = "no-store"
+    if production_mode:
+        # Render terminates HTTPS before forwarding requests to the Python service.
+        r.headers["Strict-Transport-Security"] = "max-age=31536000"
     return r
+
+@app.errorhandler(400)
+def bad_request(_error):
+    # Log the event category/path, never the submitted form contents.
+    logging.warning("bad_request method=%s path=%s", request.method, request.path)
+    return "Request rejected. Check your submitted input and try again.", 400
+
+@app.errorhandler(404)
+def not_found(_error):
+    return "Page or record not found.", 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    # Keep details in server logs; return no stack trace to the browser.
+    app.logger.error("internal_error path=%s type=%s", request.path, type(error).__name__)
+    return "An unexpected error occurred. Please try again later.", 500
 
 @app.route("/",methods=["GET","POST"])
 def home():
@@ -62,6 +95,7 @@ def home():
         if u and check_password_hash(u["password_hash"],pw):
             session.clear(); session["uid"]=u["id"]; session["email"]=u["email"]; session["_csrf"]=secrets.token_urlsafe(32)
             logging.info("login success user_id=%s",u["id"]); return redirect("/")
+        logging.warning("login_failed")
         flash("Invalid email or password.")
     csrf=token()
     if "uid" not in session: return render_template_string(HTML,user=None,csrf=csrf)
@@ -78,6 +112,7 @@ def add():
     desc=request.form.get("description","").strip(); kind=request.form.get("kind","")
     if not 0<amount<=10000000 or kind not in ("income","expense") or not desc or len(desc)>100: abort(400,"Invalid transaction fields")
     db().execute("INSERT INTO transactions(user_id,kind,amount,description) VALUES(?,?,?,?)",(session["uid"],kind,amount,desc)); db().commit()
+    logging.info("transaction_created user_id=%s", session["uid"])
     flash("Transaction added."); return redirect("/")
 
 @app.post("/delete/<int:tid>")
@@ -86,12 +121,16 @@ def delete(tid):
     check_csrf()
     cur=db().execute("DELETE FROM transactions WHERE id=? AND user_id=?",(tid,session["uid"])); db().commit()
     if not cur.rowcount: abort(404)
+    logging.info("transaction_deleted user_id=%s transaction_id=%s", session["uid"], tid)
     flash("Transaction deleted."); return redirect("/")
 
 @app.post("/logout")
 @login_required
 def logout():
-    check_csrf(); session.clear(); return redirect("/")
+    check_csrf()
+    logging.info("logout user_id=%s", session["uid"])
+    session.clear()
+    return redirect("/")
 
 init_db()
 if __name__=="__main__": app.run(host="127.0.0.1",port=int(os.environ.get("PORT","5000")),debug=False)
