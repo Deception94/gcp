@@ -57,7 +57,7 @@ This repository includes a `render.yaml` Blueprint for a classroom demo deployme
 2. Connect the GitHub repository `Deception94/gcp` and select the branch containing `render.yaml`.
 3. Review the Blueprint configuration. Render generates `PORTAL_SECRET_KEY`; do not replace it with a committed secret.
 4. Create/deploy the Blueprint and wait for the build and deploy status to report success.
-5. Open the `onrender.com` URL shown by Render and confirm the login page loads.
+5. Open the `onrender.com` URL shown by Render and confirm the login page loads. The login screen displays the fictional demo credentials for the reviewer.
 
 The hosted demo uses fictional records and public classroom demo credentials. Do not enter real financial or personal data. The free hosting filesystem is ephemeral: SQLite demo transactions can be cleared when the service restarts, redeploys, or spins down. This is not a production banking application. For production use, replace SQLite with a managed database and conduct a full security review.
 
